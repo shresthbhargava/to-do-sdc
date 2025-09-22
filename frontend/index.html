@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive To-Do List</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>To-Do List</h1>
+            <p>Organize your tasks efficiently</p>
+        </header>
+        
+        <div class="task-form">
+            <input type="text" id="taskInput" placeholder="Enter a new task...">
+            <button id="addBtn">Add Task</button>
+        </div>
+        
+        <div class="filter-options">
+            <button id="showAll" class="filter-btn active">All</button>
+            <button id="showActive" class="filter-btn">Active</button>
+            <button id="showCompleted" class="filter-btn">Completed</button>
+        </div>
+        
+        <ul id="taskList"></ul>
+        
+        <div class="task-stats">
+            <span id="tasksCount">0 tasks</span>
+            <button id="clearCompleted">Clear Completed</button>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
