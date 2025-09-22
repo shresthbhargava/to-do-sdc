@@ -1,0 +1,29 @@
+{
+  "name": "sdc",
+  "version": "1.0.0",
+  "description": "��#\u0000 \u0000t\u0000o\u0000-\u0000d\u0000o\u0000-\u0000s\u0000d\u0000c\u0000\r\u0000 \u0000",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shresthbhargava/to-do-sdc.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/shresthbhargava/to-do-sdc/issues"
+  },
+  "homepage": "https://github.com/shresthbhargava/to-do-sdc#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

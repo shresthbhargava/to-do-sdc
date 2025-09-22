@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive To-Do List</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: #4a6fc0;
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+        }
+        
+        .task-form {
+            padding: 20px;
+            background: #f5f7fa;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .task-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        .task-input:focus {
+            border-color: #4a6fc0;
+            outline: none;
+        }
+        
+        .add-btn {
+            background: #4a6fc0;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        
+        .add-btn:hover {
+            background: #3b5aa6;
+        }
+        
+        .task-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .task-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            animation: fadeIn 0.5s;
+        }
+        
+        .task-item:last-child {
+            border-bottom: none;
+        }
+        
+        .task-text {
+            flex: 1;
+            font-size: 16px;
+            word-break: break-word;
+        }
+        
+        .task-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .delete-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .delete-btn:hover {
+            background: #ff2e43;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+        }
+        
+        .empty-state i {
+            font-size: 50px;
+            margin-bottom: 10px;
+            color: #ccc;
+        }
+        
+        .stats {
+            padding: 15px 20px;
+            background: #f5f7fa;
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid #ddd;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #4a6fc0;
+        }
+        
+        .error {
+            text-align: center;
+            padding: 10px 20px;
+            background: #ffebee;
+            color: #d32f2f;
+            margin: 0 20px 20px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-tasks"></i> Interactive To-Do List</h1>
+            <p>Stay organized and boost your productivity</p>
+        </div>
+        
+        <div class="task-form">
+            <input type="text" class="task-input" id="taskInput" placeholder="Enter a new task...">
+            <button class="add-btn" id="addBtn">Add Task</button>
+        </div>
+        
+        <div id="errorContainer"></div>
+        
+        <div class="task-list" id="taskList">
+            <div class="loading" id="loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading tasks...
+            </div>
+        </div>
+        
+        <div class="stats">
+            <span>Total tasks: <span id="totalTasks">0</span></span>
+            <span>Completed: <span id="completedTasks">0</span></span>
+        </div>
+    </div>
+
+    <script>
+        // API configuration
+        const API_BASE_URL = 'http://localhost:3000';
+        
+        // DOM elements
+        const taskInput = document.getElementById('taskInput');
+        const addBtn = document.getElementById('addBtn');
+        const taskList = document.getElementById('taskList');
+        const totalTasksEl = document.getElementById('totalTasks');
+        const completedTasksEl = document.getElementById('completedTasks');
+        const loadingEl = document.getElementById('loading');
+        const errorContainer = document.getElementById('errorContainer');
+        
+        // Store tasks
+        let tasks = [];
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTasks();
+            
+            // Add task event
+            addBtn.addEventListener('click', addTask);
+            taskInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addTask();
+            });
+        });
+        
+        // Load tasks from the backend
+        async function loadTasks() {
+            try {
+                loadingEl.style.display = 'block';
+                const response = await fetch(`${API_BASE_URL}/tasks`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch tasks');
+                }
+                
+                tasks = await response.json();
+                renderTasks();
+            } catch (error) {
+                showError(`Error loading tasks: ${error.message}`);
+            } finally {
+                loadingEl.style.display = 'none';
+            }
+        }
+        
+        // Add a new task
+        async function addTask() {
+            const text = taskInput.value.trim();
+            
+            if (!text) {
+                showError('Please enter a task');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to add task');
+                }
+                
+                const newTask = await response.json();
+                tasks.push(newTask);
+                renderTasks();
+                taskInput.value = '';
+                hideError();
+            } catch (error) {
+                showError(`Error adding task: ${error.message}`);
+            }
+        }
+        
+        // Delete a task
+        async function deleteTask(id) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to delete task');
+                }
+                
+                tasks = tasks.filter(task => task.id !== id);
+                renderTasks();
+            } catch (error) {
+                showError(`Error deleting task: ${error.message}`);
+            }
+        }
+        
+        // Render all tasks
+        function renderTasks() {
+            if (tasks.length === 0) {
+                taskList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-clipboard-list"></i>
+                        <h3>No tasks yet</h3>
+                        <p>Add a task to get started!</p>
+                    </div>
+                `;
+            } else {
+                taskList.innerHTML = '';
+                tasks.forEach(task => {
+                    const taskEl = document.createElement('div');
+                    taskEl.className = 'task-item';
+                    taskEl.innerHTML = `
+                        <span class="task-text">${task.text}</span>
+                        <div class="task-actions">
+                            <button class="delete-btn" onclick="deleteTask(${task.id})">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
+                    `;
+                    taskList.appendChild(taskEl);
+                });
+            }
+            
+            totalTasksEl.textContent = tasks.length;
+        }
+        
+        // Show error message
+        function showError(message) {
+            errorContainer.innerHTML = `<div class="error">${message}</div>`;
+        }
+        
+        // Hide error message
+        function hideError() {
+            errorContainer.innerHTML = '';
+        }
+    </script>
+</body>
+</html>
