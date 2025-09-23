@@ -1,4 +1,7 @@
-const API_BASE_URL = 'http://localhost:3000/api';
+// Configuration - update this URL when deploying
+const API_BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:3000/api' 
+    : 'https://your-backend-url.onrender.com/api'; // Replace with your deployed backend URL
 
 // DOM elements
 const taskInput = document.getElementById('taskInput');
@@ -24,23 +27,38 @@ filterButtons.forEach(btn => {
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
     loadTasks();
+    console.log('App initialized with API:', API_BASE_URL);
 });
 
 // API functions
 async function loadTasks() {
     try {
+        showLoading(true);
         const response = await fetch(`${API_BASE_URL}/tasks`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         tasks = await response.json();
         renderTasks();
+        showNotification('Tasks loaded successfully', 'success');
     } catch (error) {
         console.error('Error loading tasks:', error);
-        showNotification('Failed to load tasks', 'error');
+        showNotification('Failed to load tasks. Check if server is running.', 'error');
+        tasks = [];
+        renderTasks();
+    } finally {
+        showLoading(false);
     }
 }
 
 async function addTask() {
     const text = taskInput.value.trim();
-    if (!text) return;
+    if (!text) {
+        showNotification('Please enter a task!', 'error');
+        return;
+    }
 
     try {
         const response = await fetch(`${API_BASE_URL}/tasks`, {
@@ -53,14 +71,15 @@ async function addTask() {
 
         if (response.ok) {
             taskInput.value = '';
-            loadTasks();
+            await loadTasks();
             showNotification('Task added successfully', 'success');
         } else {
-            throw new Error('Failed to add task');
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to add task');
         }
     } catch (error) {
         console.error('Error adding task:', error);
-        showNotification('Failed to add task', 'error');
+        showNotification(error.message || 'Failed to add task', 'error');
     }
 }
 
@@ -78,7 +97,12 @@ async function updateTask(id, updates) {
             throw new Error('Failed to update task');
         }
         
-        loadTasks();
+        await loadTasks();
+        
+        if (updates.completed !== undefined) {
+            const message = updates.completed ? 'Task completed! 🎉' : 'Task marked as active';
+            showNotification(message, 'success');
+        }
     } catch (error) {
         console.error('Error updating task:', error);
         showNotification('Failed to update task', 'error');
@@ -86,13 +110,17 @@ async function updateTask(id, updates) {
 }
 
 async function deleteTask(id) {
+    if (!confirm('Are you sure you want to delete this task?')) {
+        return;
+    }
+
     try {
         const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
             method: 'DELETE'
         });
 
         if (response.ok) {
-            loadTasks();
+            await loadTasks();
             showNotification('Task deleted successfully', 'success');
         } else {
             throw new Error('Failed to delete task');
@@ -104,13 +132,25 @@ async function deleteTask(id) {
 }
 
 async function clearCompletedTasks() {
+    const completedTasks = tasks.filter(task => task.completed);
+    
+    if (completedTasks.length === 0) {
+        showNotification('No completed tasks to clear', 'error');
+        return;
+    }
+
+    if (!confirm(`Delete ${completedTasks.length} completed task(s)?`)) {
+        return;
+    }
+
     try {
-        const completedTasks = tasks.filter(task => task.completed);
+        // Delete all completed tasks
+        const deletePromises = completedTasks.map(task => 
+            fetch(`${API_BASE_URL}/tasks/${task._id}`, { method: 'DELETE' })
+        );
         
-        for (const task of completedTasks) {
-            await deleteTask(task._id);
-        }
-        
+        await Promise.all(deletePromises);
+        await loadTasks();
         showNotification('Completed tasks cleared', 'success');
     } catch (error) {
         console.error('Error clearing completed tasks:', error);
@@ -126,9 +166,7 @@ function renderTasks() {
         taskList.innerHTML = `
             <div class="empty-state">
                 <h3>No tasks found</h3>
-                <p>${currentFilter === 'completed' ? 
-                    'You haven\'t completed any tasks yet' : 
-                    'Add a new task to get started'}</p>
+                <p>${getEmptyStateMessage()}</p>
             </div>
         `;
     } else {
@@ -142,23 +180,39 @@ function renderTasks() {
     updateTaskCount();
 }
 
+function getEmptyStateMessage() {
+    switch (currentFilter) {
+        case 'completed':
+            return 'You haven\'t completed any tasks yet';
+        case 'active':
+            return 'No active tasks! Great job!';
+        default:
+            return 'Add a new task to get started';
+    }
+}
+
 function createTaskElement(task) {
     const li = document.createElement('li');
     li.className = `task-item ${task.completed ? 'completed' : ''}`;
     
+    // Format date
+    const date = new Date(task.createdAt).toLocaleDateString();
+    
     li.innerHTML = `
         <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''}>
-        <span class="task-text">${task.text}</span>
+        <div class="task-content">
+            <span class="task-text">${escapeHtml(task.text)}</span>
+            <small class="task-date">Created: ${date}</small>
+        </div>
         <div class="task-actions">
-            <button class="edit-btn">Edit</button>
-            <button class="delete-btn">Delete</button>
+            <button class="edit-btn" title="Edit task">Edit</button>
+            <button class="delete-btn" title="Delete task">Delete</button>
         </div>
     `;
     
     const checkbox = li.querySelector('.task-checkbox');
     const editBtn = li.querySelector('.edit-btn');
     const deleteBtn = li.querySelector('.delete-btn');
-    const taskText = li.querySelector('.task-text');
     
     checkbox.addEventListener('change', () => {
         updateTask(task._id, { completed: checkbox.checked });
@@ -170,7 +224,7 @@ function createTaskElement(task) {
     
     editBtn.addEventListener('click', () => {
         const newText = prompt('Edit your task:', task.text);
-        if (newText !== null && newText.trim() !== '') {
+        if (newText !== null && newText.trim() !== '' && newText.trim() !== task.text) {
             updateTask(task._id, { text: newText.trim() });
         }
     });
@@ -189,16 +243,21 @@ function filterTasks() {
     }
 }
 
-function setFilter(filter) {
-    currentFilter = filter.replace('show', '').toLowerCase();
+function setFilter(filterId) {
+    // Map button IDs to filter values
+    const filterMap = {
+        'showAll': 'all',
+        'showActive': 'active',
+        'showCompleted': 'completed'
+    };
+    
+    currentFilter = filterMap[filterId] || 'all';
     
     filterButtons.forEach(btn => {
         btn.classList.remove('active');
-        if (btn.id === `show${currentFilter.charAt(0).toUpperCase() + currentFilter.slice(1)}`) {
-            btn.classList.add('active');
-        }
     });
     
+    document.getElementById(filterId).classList.add('active');
     renderTasks();
 }
 
@@ -208,9 +267,21 @@ function updateTaskCount() {
     const activeTasks = totalTasks - completedTasks;
     
     tasksCount.textContent = `${activeTasks} active ${activeTasks === 1 ? 'task' : 'tasks'}`;
+    
+    // Update page title with count
+    document.title = activeTasks > 0 ? `(${activeTasks}) Interactive To-Do List` : 'Interactive To-Do List';
+    
+    // Show/hide clear completed button
+    clearCompletedBtn.style.display = completedTasks > 0 ? 'block' : 'none';
 }
 
-function showNotification(message, type) {
+function showLoading(show) {
+    if (show) {
+        taskList.innerHTML = '<div class="loading">Loading tasks...</div>';
+    }
+}
+
+function showNotification(message, type = 'success') {
     // Create notification element if it doesn't exist
     let notification = document.querySelector('.notification');
     if (!notification) {
@@ -220,18 +291,21 @@ function showNotification(message, type) {
     }
     
     notification.textContent = message;
-    notification.className = `notification ${type}`;
-    
-    // Show notification
-    notification.style.display = 'block';
+    notification.className = `notification ${type} show`;
     
     // Hide after 3 seconds
     setTimeout(() => {
-        notification.style.display = 'none';
+        notification.classList.remove('show');
     }, 3000);
 }
 
-// Add notification styles
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Add enhanced notification styles
 const style = document.createElement('style');
 style.textContent = `
     .notification {
@@ -243,8 +317,14 @@ style.textContent = `
         color: white;
         font-weight: 500;
         z-index: 1000;
-        display: none;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        max-width: 300px;
+    }
+    
+    .notification.show {
+        transform: translateX(0);
     }
     
     .notification.success {
@@ -253,6 +333,25 @@ style.textContent = `
     
     .notification.error {
         background: #f56565;
+    }
+    
+    .loading {
+        text-align: center;
+        padding: 20px;
+        color: #718096;
+        font-style: italic;
+    }
+    
+    .task-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .task-date {
+        color: #a0aec0;
+        font-size: 12px;
     }
 `;
 document.head.appendChild(style);
